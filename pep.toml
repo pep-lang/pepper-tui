@@ -1,6 +1,9 @@
 [package]
-name = "mypkg"
-version = "0.1.0"
-description = "One line saying what the package does"
+name = "tui"
+version = "1.0.0"
+description = "Full-screen terminal apps in the style of Ratatui: widgets, layout and diffed rendering over pepper-term"
 license = "Apache-2.0"
-repository = "https://github.com/OWNER/pepper-mypkg"
+repository = "https://github.com/pep-lang/pepper-tui"
+
+[dependencies]
+term = { github = "pep-lang/pepper-term", version = "1.0.0" }
