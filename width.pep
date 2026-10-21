@@ -54,12 +54,3 @@ export display_width(value: String): int {
     }
     return width;
 }
-
-# The code point of a one-code-point string.
-_code_point(symbol: String): uint {
-    if (symbol.size == 0) {
-        return 0;
-    }
-    var (point, _) = text.Utf8.code_point_at(symbol, 0);
-    return point;
-}

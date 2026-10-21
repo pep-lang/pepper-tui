@@ -208,6 +208,13 @@ scrollbar_places_its_thumb() {
         Scrollbar(ScrollbarOrientation.HorizontalBottom), ScrollbarState(2, 0, 4), 6, 2
     ).assert_lines(["      ", "◄████►"]);
     draw_stateful(bar, ScrollbarState(0), 1, 3).assert_lines([" ", " ", " "]);
+    # Over a wide character's covered cell, the arrow still shows.
+    var backend = TestBackend(4, 3);
+    Terminal(backend).draw((frame) => {
+        frame.render_widget(Paragraph("ab界"), frame.area);
+        frame.render_stateful_widget(bar, frame.area, ScrollbarState(10));
+    });
+    backend.buffer.assert_lines(["ab ▲", "   █", "   ▼"]);
     draw_stateful(Scrollbar(ScrollbarOrientation.VerticalLeft), ScrollbarState(5), 2, 2).assert_lines(["█ ", "║ "]);
 }
 

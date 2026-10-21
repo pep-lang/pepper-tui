@@ -151,7 +151,25 @@ export struct Buffer {
         if (area.contains(x, y)) {
             var index = _index(x, y);
             var cell = content[index];
+            # Never leave half a wide character: one whose covered cell is
+            # drawn over would hide that cell (diff skips it), and a covered
+            # cell without its wide character would show nothing.
+            if (cell.symbol.is_empty && !symbol.is_empty) {
+                _blank(x - 1, y);
+            }
+            if (display_width(cell.symbol) == 2 && area.contains(x + 1, y) && get(x + 1, y).symbol.is_empty) {
+                _blank(x + 1, y);
+            }
             content[index] = Cell(symbol, cell.style.patch(style));
+        }
+    }
+
+    _blank(x: int, y: int) {
+        if (area.contains(x, y)) {
+            var index = _index(x, y);
+            var cell = content[index];
+            cell.symbol = " ";
+            content[index] = cell;
         }
     }
 

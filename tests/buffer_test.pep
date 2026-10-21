@@ -34,6 +34,20 @@ writes_wide_characters_as_two_cells() {
 }
 
 [Test]
+never_leaves_half_a_wide_character() {
+    var buffer = Buffer(Rect(0, 0, 4, 1));
+    buffer.set_string(2, 0, "界", Style());
+    buffer.set_string(3, 0, "x", Style());
+    buffer.assert_lines(["   x"]);
+    buffer.set_string(0, 0, "界", Style());
+    buffer.set_string(0, 0, "y", Style());
+    buffer.assert_lines(["y  x"]);
+    # Drawn over in a frame, the cell is sent: a scrollbar beside CJK text.
+    var updates = buffer.diff(Buffer(Rect(0, 0, 4, 1)));
+    expect_equal(updates.count, 2);
+}
+
+[Test]
 joins_combining_marks_to_the_cell_before() {
     var buffer = Buffer(Rect(0, 0, 3, 1));
     buffer.set_string(0, 0, "éx", Style());

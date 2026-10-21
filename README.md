@@ -93,6 +93,12 @@ mode off. The same happens at the end of `main`, on a panic, and, on Linux
 and macOS, on SIGTERM, SIGHUP, SIGINT and SIGQUIT. `process.exit` runs no
 exit handlers, so call `tui.restore()` before it.
 
+Call `tui.init()` before anything turns pepper-term's raw mode on (a
+`term.RawMode`, a `term.LineReader` reading a line): otherwise pepper-term's
+signal handlers stay in place, and a panic leaves the alternate screen up.
+To set the terminal up again after `restore()`, let the old `Terminal` go
+first, or its raw mode, freed later, turns the new one's off.
+
 ## Limits
 
 - No mouse, bracketed paste or focus events: pepper-term does not decode

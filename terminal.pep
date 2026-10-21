@@ -317,6 +317,13 @@ export struct Terminal {
 ## SIGTERM, SIGHUP, SIGINT or SIGQUIT (POSIX). `process.exit` runs no exit
 ## handlers, so call `restore` before it.
 ##
+## Call it before anything else turns pepper-term's raw mode on (a
+## `term.RawMode`, a `term.LineReader` reading a line): its signal handlers
+## would then stay in place of these, and a panic would leave the alternate
+## screen up. To set the terminal up again after `restore`, let the old
+## `Terminal` go first: its backend's raw mode, freed later, would turn the
+## new one's off.
+##
 ## @returns the terminal
 ## @example
 ##     import tui;

@@ -194,7 +194,7 @@ _wrap(pieces: _Grapheme[], width: int, trim: bool): _Grapheme[][] {
     var spaces_width = 0;
     ulong index = 0;
     while (index < pieces.count) {
-        if (pieces[index].symbol == " " || pieces[index].symbol == "\t") {
+        if (pieces[index].symbol == " ") {
             if (!(trim && row.count == 0)) {
                 spaces.append(pieces[index]);
                 spaces_width += pieces[index].width;
@@ -204,7 +204,7 @@ _wrap(pieces: _Grapheme[], width: int, trim: bool): _Grapheme[][] {
         }
         var word = Array<_Grapheme>();
         var word_width = 0;
-        while (index < pieces.count && pieces[index].symbol != " " && pieces[index].symbol != "\t") {
+        while (index < pieces.count && pieces[index].symbol != " ") {
             word.append(pieces[index]);
             word_width += pieces[index].width;
             index += 1;
