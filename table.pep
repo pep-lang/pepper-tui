@@ -128,6 +128,13 @@ extend Table with StatefulWidget<TableState> {
             state.select(Optional<ulong>.Empty);
         } else {
             _clamp_selection(state, rows.count);
+            if (state.selected) {
+                var cells = Array<String>();
+                for (var cell in rows[state.selected.value()].cells) {
+                    cells.append(cell.to_string());
+                }
+                state._selected_text = "\t".join(cells);
+            }
         }
         var mark = state.selected ? display_width(highlight_symbol) : 0;
         var columns = Layout(Direction.Horizontal, widths, spacing = column_spacing).split(

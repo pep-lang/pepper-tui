@@ -1,10 +1,10 @@
-## Input events: key presses and mouse reports from pepper-term's
+## Input events: key presses, mouse reports and pastes from pepper-term's
 ## `InputReader`, and resizes of the terminal.
 
 import term;
 
-## Something that happened: a key pressed, the mouse used, or the terminal
-## resized.
+## Something that happened: a key pressed, the mouse used, text pasted, or
+## the terminal resized.
 export enum Event {
     ## A key press.
     Key(key: term.KeyEvent),
@@ -12,6 +12,12 @@ export enum Event {
     ## `init(mouse = true)`. Its `column` and `row` count from 0, as a
     ## `Rect`'s do.
     Mouse(mouse: term.MouseEvent),
+    ## Text pasted into the terminal, whole, which arrives only after
+    ## `init(paste = true)` (otherwise a paste arrives as typed keys). Line
+    ## ends are "\n". When the paste was longer than a megabyte, `text`
+    ## holds its start and `truncated` is true. `TextInputState.handle_event`
+    ## puts it in at the cursor.
+    Paste(text: String, truncated: bool),
     ## The terminal's new size, in columns and rows.
     Resize(columns: int, rows: int),
 }
@@ -43,7 +49,7 @@ export struct Events {
     }
 
     ## Waits for the next event: a resize since the last call, else the
-    ## next key press or mouse report.
+    ## next key press, mouse report or paste.
     ##
     ## @returns the event, or Empty at the end of input
     next(): Event? {
@@ -68,9 +74,12 @@ export struct Events {
                 Mouse(mouse) => {
                     return Optional<Event>.Value(Event.Mouse(mouse));
                 }
-                # Pastes arrive only while a term.PasteMode is on, which this
-                # package never turns on; pep-lang/pepper-tui#3 adds them.
-                Paste(_, _) => {}
+                Paste(text, truncated) => {
+                    return Optional<Event>.Value(Event.Paste(text, truncated));
+                }
+                # A clipboard read's answer that came after it stopped
+                # waiting: nobody is asking any more.
+                ClipboardReply(_, _) => {}
             }
         }
     }

@@ -17,7 +17,7 @@ mkdir "$build/packages"
 ln -s "$root" "$build/packages/tui"
 "$pepper" test -I "$build/packages" "$root/tests"
 
-for program in minimal list_detail; do
+for program in minimal list_detail text_input; do
     "$pepper" build -I "$build/packages" "$root/examples/$program/main.pep" -o "$build/$program"
 done
 "$pepper" build -I "$build/packages" "$root/tests/panic/main.pep" -o "$build/panic"
@@ -42,6 +42,17 @@ if grep -q ice "$build/mouse.out"; then
 fi
 printf '\033[<0;3;7M\033[<65;3;7Mq' | "$build/list_detail" > "$build/wheel.out"
 grep -q ice "$build/wheel.out"
+
+# A bracketed paste (ESC [ 200 ~ ... ESC [ 201 ~) goes into the field
+# whole: its line end becomes a space in the one-row field, so "two"
+# starts at column 8 (the blank before it is unchanged, so not written);
+# typed, the line end would be Enter, which the field ignores. A control
+# character in a paste shows as U+FFFD rather than reaching the terminal.
+printf 'ab\033[200~one\ntwo\033[201~\033[200~x\033[31my\033[201~' | "$build/text_input" > "$build/paste.out"
+grep -q '\[2;4Hone' "$build/paste.out"
+grep -q '\[2;8Htwo' "$build/paste.out"
+grep -q "x$(printf '\357\277\275')\[31my" "$build/paste.out"
+tail -c 14 "$build/paste.out" | od -c | grep -q '\[   ?   1   0   4   9   l'
 
 # A panic puts the screen back too.
 if "$build/panic" < /dev/null > "$build/panic.out" 2> "$build/panic.err"; then

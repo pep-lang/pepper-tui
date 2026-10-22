@@ -34,9 +34,27 @@ export struct ListState {
     var _row_items = Array<ulong>();
     var _count: ulong;
     var _header = Array<Rect>();
+    var _selected_text = "";
 
     ## Makes a state with nothing selected and no scroll.
     construct() {}
+
+    ## Returns the text of the selected item, as the last draw with this
+    ## state found it, without styles, for copying to the clipboard: a
+    ## `List` item's lines joined by "\n", or a `Table` row's cells joined
+    ## by a tab.
+    ##
+    ## @returns the text, or "" when nothing was selected at the last draw
+    ## @example
+    ##     import tui;
+    ##
+    ##     var state = tui.ListState();
+    ##     state.select_next();
+    ##     # after a frame draws a List with this state:
+    ##     var copied = state.selected_text();   # the first item's text
+    selected_text(): String {
+        return _selected_text;
+    }
 
     ## Acts on a mouse event as the `List` or `Table` last drawn with this
     ## state places it: a left click on an item selects it, a partly shown
@@ -102,6 +120,7 @@ export struct ListState {
         _row_items = Array<ulong>();
         _count = count;
         _header = Array<Rect>();
+        _selected_text = "";
     }
 
     ## Selects `index`, or nothing for Empty.
@@ -199,6 +218,9 @@ extend List with StatefulWidget<ListState> {
             heights.append(item.height().max(1));
         }
         _clamp_selection(state, items.count);
+        if (state.selected) {
+            state._selected_text = items[state.selected.value()].to_string();
+        }
         state.offset = _visible_offset(heights, state, inner.height);
         var mark = state.selected ? display_width(highlight_symbol) : 0;
         var y = inner.y;

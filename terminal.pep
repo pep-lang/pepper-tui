@@ -43,11 +43,12 @@ export trait Backend {
 
 ## The backend of a real terminal: it writes escape sequences to standard
 ## output through pepper-term, all of a frame's in one write, and holds raw
-## mode (and, when asked, mouse reporting) on while it lives. Make one with
-## `init`.
+## mode (and, when asked, mouse reporting and bracketed paste) on while it
+## lives. Make one with `init`.
 export struct TermBackend {
     var _raw: term.RawMode;
     var _mouse: term.MouseMode?;
+    var _paste: term.PasteMode?;
     var _out = io.File.stdout();
     var _pending = StringBuilder();
 
@@ -56,15 +57,24 @@ export struct TermBackend {
     ##
     ## @param mouse whether to turn mouse reporting on too: presses,
     ##   releases, drags and the wheel
-    construct(mouse: bool = false) {
+    ## @param paste whether to turn bracketed paste on too, so a paste
+    ##   arrives as one `Event.Paste`
+    construct(mouse: bool = false, paste: bool = false) {
         _raw = term.RawMode();
         if (mouse) {
             _mouse = Optional<term.MouseMode>.Value(term.MouseMode(term.MouseTracking.Drag));
         }
+        if (paste) {
+            _paste = Optional<term.PasteMode>.Value(term.PasteMode());
+        }
     }
 
-    # Mouse reporting goes off before raw mode, the reverse of turning on.
+    # Paste and mouse reporting go off before raw mode, the reverse of
+    # turning on.
     destruct {
+        if (_paste) {
+            _paste.value().exit();
+        }
         if (_mouse) {
             _mouse.value().exit();
         }
@@ -279,6 +289,7 @@ export struct Terminal {
     var _previous: Buffer;
     var _cursor_hidden: bool;
     var _areas = HashMap<String, Rect>();
+    var _clipboard: term.Clipboard?;
 
     ## Makes a terminal that draws on `backend`. The backend's screen is
     ## taken to be blank.
@@ -351,6 +362,35 @@ export struct Terminal {
         return drawn;
     }
 
+    ## Copies `text` to the clipboard, through a pepper-term `Clipboard`
+    ## made at the first copy (`ClipboardBackend.Auto`: the OS's clipboard
+    ## when the program runs locally, else the terminal's, through OSC 52,
+    ## which reaches the user's clipboard over SSH too). What the backend
+    ## has not sent yet goes first, so the OSC 52 sequence is never written
+    ## into the middle of a frame.
+    ##
+    ## Through OSC 52 the terminal does not say whether it copied, so
+    ## success means the request was written.
+    ##
+    ## @param text the text to copy, such as a widget's `selected_text()`
+    ## @returns nothing; a `ClipboardError` when there is no clipboard to
+    ##   reach, the text is past the OSC 52 limit, or the OS refused. Its
+    ##   `to_string()` holds none of the text, so it is safe to show
+    ## @example
+    ##     # in the event loop, on Ctrl+Y: copy what is selected, and say
+    ##     # in a status line if that failed
+    ##     var copied = terminal.copy(state.selected_text());
+    ##     if (copied.is_err()) {
+    ##         status = $"could not copy: {copied.error()}";
+    ##     }
+    copy(text: String): Result<void, term.ClipboardError> {
+        backend.flush();
+        if (_clipboard.is_empty()) {
+            _clipboard = Optional<term.Clipboard>.Value(term.Clipboard());
+        }
+        return _clipboard.value().copy(text);
+    }
+
     ## Erases the screen; the next `draw` writes every cell.
     clear() {
         backend.clear();
@@ -364,7 +404,8 @@ export struct Terminal {
 ## hidden, the screen blank. With `mouse`, mouse reporting is on too, and
 ## `Events.next` yields `Event.Mouse`; the terminal then keeps the mouse,
 ## so the user cannot select text with it (many terminals still select
-## with Shift held).
+## with Shift held). With `paste`, bracketed paste is on too, and a paste
+## arrives as one `Event.Paste` rather than as typed keys.
 ##
 ## Call `restore` when the app ends. The terminal is also restored when the
 ## program ends without it: at the end of `main`, on a panic, and on
@@ -380,27 +421,28 @@ export struct Terminal {
 ##
 ## @param mouse whether to turn mouse reporting on: presses, releases,
 ##   drags and the wheel
+## @param paste whether to turn bracketed paste on
 ## @returns the terminal
 ## @example
 ##     import tui;
 ##
 ##     main(): int {
-##         var terminal = tui.init(mouse = true);
+##         var terminal = tui.init(mouse = true, paste = true);
 ##         # ... draw frames and read events ...
 ##         tui.restore();
 ##         return 0;
 ##     }
-export init(mouse: bool = false): Terminal {
+export init(mouse: bool = false, paste: bool = false): Terminal {
     _tui_install_hooks();
-    var backend = TermBackend(mouse);
+    var backend = TermBackend(mouse, paste);
     term.colors_enabled();
     _tui_enter();
     return Terminal(backend);
 }
 
 ## Puts the terminal back as `init` found it: the main screen, the cursor
-## showing, and raw mode and mouse reporting off. Does nothing when it is
-## already restored.
+## showing, and raw mode, mouse reporting and bracketed paste off. Does
+## nothing when it is already restored.
 export restore() {
     _tui_leave();
     term.restore();
