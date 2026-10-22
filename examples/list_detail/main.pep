@@ -1,5 +1,6 @@
 # A list of planets on the left and the selected one's details on the
-# right. Up and Down (or k and j) move, q or Escape quits.
+# right. Up and Down (or k and j), a click or the wheel move; q or Escape
+# quits.
 
 import term;
 import [BasicColor, Color, Key] from term;
@@ -57,7 +58,7 @@ main(): int {
     }
     var state = ListState();
     state.select_next();
-    var terminal = tui.init();
+    var terminal = tui.init(mouse = true);
     var events = tui.Events();
     var running = true;
     while (running) {
@@ -91,7 +92,9 @@ main(): int {
                     ),
                     rows[1]
                 );
-                frame.render_widget(Paragraph("Up/Down move  q quit", alignment = tui.Alignment.Center), rows[2]);
+                frame.render_widget(
+                    Paragraph("Up/Down, click or wheel move  q quit", alignment = tui.Alignment.Center), rows[2]
+                );
             }
         );
         var event = events.next();
@@ -107,6 +110,9 @@ main(): int {
                 } else if (key.key == Key.Escape || key.text == "q") {
                     running = false;
                 }
+            }
+            Mouse(mouse) => {
+                state.handle_mouse(mouse);
             }
             Resize(_, _) => {}
         }

@@ -119,6 +119,7 @@ extend Table with StatefulWidget<TableState> {
     render(area: Rect, buffer: Buffer, state: TableState) {
         buffer.set_style(area, style);
         block.render(area, buffer);
+        state._drawn(area, rows.count);
         var inner = block.inner(area);
         if (inner.is_empty()) {
             return;
@@ -136,11 +137,15 @@ extend Table with StatefulWidget<TableState> {
         if (header.cells.count > 0) {
             var height = header.height.max(1).min(inner.height);
             _draw_row(buffer, header, columns, y, height);
+            for (var column in columns) {
+                state._header.append(Rect(column.x, y, column.width, height));
+            }
             y += height;
         }
         if (rows.count == 0) {
             return;
         }
+        state._rows = Rect(inner.x, y, inner.width, inner.bottom - y);
         var heights = Array<int>();
         for (var row in rows) {
             heights.append(row.height.max(1));
@@ -153,6 +158,9 @@ extend Table with StatefulWidget<TableState> {
             if (state.selected && state.selected.value() == index) {
                 buffer.set_string(inner.x, y, highlight_symbol, Style(), mark);
                 buffer.set_style(Rect(inner.x, y, inner.width, height), highlight_style);
+            }
+            for (var _ in 0..height) {
+                state._row_items.append(index);
             }
             y += height;
             index += 1;

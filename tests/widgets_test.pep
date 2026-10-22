@@ -1,5 +1,6 @@
 # Snapshot tests of every widget, drawn through a Terminal on a TestBackend.
 
+import [MouseButton, MouseEvent, MouseKind] from term;
 import tui;
 import [
     Alignment,
@@ -216,6 +217,129 @@ scrollbar_places_its_thumb() {
     });
     backend.buffer.assert_lines(["ab ▲", "   █", "   ▼"]);
     draw_stateful(Scrollbar(ScrollbarOrientation.VerticalLeft), ScrollbarState(5), 2, 2).assert_lines(["█ ", "║ "]);
+}
+
+# Mouse events, as `Event.Mouse` gives them.
+
+click(column: int, row: int): MouseEvent {
+    return MouseEvent(MouseKind.Down, MouseButton.Left, column as ulong, row as ulong);
+}
+
+mouse(kind: MouseKind, column: int, row: int): MouseEvent {
+    return MouseEvent(kind, MouseButton.None, column as ulong, row as ulong);
+}
+
+[Test]
+list_selects_by_click_and_wheel() {
+    var list = List(["a", "b", "c", "d", "e"], block = Block(), highlight_symbol = ">");
+    var state = ListState();
+    expect_false(state.handle_mouse(click(1, 1)));  # not drawn yet
+    draw_stateful(list, state, 5, 4).assert_lines(["┌───┐", "│a  │", "│b  │", "└───┘"]);
+    expect_true(state.handle_mouse(click(1, 2)));
+    draw_stateful(list, state, 5, 4).assert_lines(["┌───┐", "│ a │", "│>b │", "└───┘"]);
+    # The borders, outside, and other buttons select nothing.
+    expect_false(state.handle_mouse(click(0, 1)));
+    expect_false(state.handle_mouse(click(1, 0)));
+    expect_false(state.handle_mouse(click(9, 9)));
+    expect_false(state.handle_mouse(MouseEvent(MouseKind.Down, MouseButton.Right, 1, 1)));
+    expect_false(state.handle_mouse(mouse(MouseKind.ScrollDown, 9, 9)));
+    expect_equal(state.selected.value(), 1);
+    # The wheel anywhere over the list, borders included, moves the selection.
+    expect_true(state.handle_mouse(mouse(MouseKind.ScrollDown, 0, 0)));
+    draw_stateful(list, state, 5, 4).assert_lines(["┌───┐", "│ b │", "│>c │", "└───┘"]);
+    for (var _ in 0..10) {
+        state.handle_mouse(mouse(MouseKind.ScrollDown, 2, 2));
+    }
+    expect_equal(state.selected.value(), 4);
+    expect_true(state.handle_mouse(mouse(MouseKind.ScrollUp, 2, 2)));
+    expect_equal(state.selected.value(), 3);
+    # A click on a row past the last item selects nothing.
+    var short = ListState();
+    draw_stateful(List(["a"]), short, 1, 3);
+    expect_false(short.handle_mouse(click(0, 2)));
+    expect_true(short.selected.is_empty());
+}
+
+[Test]
+list_selects_a_partly_shown_last_item() {
+    var list = List([Text("a1\na2"), Text("b1\nb2")]);
+    var state = ListState();
+    draw_stateful(list, state, 2, 3).assert_lines(["a1", "a2", "b1"]);
+    expect_true(state.handle_mouse(click(0, 2)));
+    expect_equal(state.selected.value(), 1);
+    draw_stateful(list, state, 2, 3).assert_lines(["b1", "b2", "  "]);
+}
+
+[Test]
+table_selects_rows_and_reports_header_clicks() {
+    var rows = [Row(["a", "1"]), Row(["b", "2"])];
+    var table = Table(rows, [Constraint.Length(1), Constraint.Length(1)], header = Row(["N", "V"]));
+    var state = TableState();
+    draw_stateful(table, state, 3, 3).assert_lines(["N V", "a 1", "b 2"]);
+    expect_false(state.handle_mouse(click(2, 0)));
+    expect_equal(state.header_clicked(click(2, 0)).value(), 1);
+    expect_equal(state.header_clicked(click(0, 0)).value(), 0);
+    expect_true(state.header_clicked(click(1, 0)).is_empty());  # the spacing
+    expect_true(state.header_clicked(click(0, 1)).is_empty());
+    expect_true(state.selected.is_empty());
+    expect_true(state.handle_mouse(click(2, 2)));
+    var buffer = draw_stateful(table, state, 3, 3);
+    expect_equal(state.selected.value(), 1);
+    expect_true(buffer.get(0, 2).style.has(tui.REVERSE));
+}
+
+[Test]
+tabs_select_by_click() {
+    var tabs = Tabs(["ab", "cd"]);
+    var area = Rect(0, 0, 9, 1);
+    expect_false(tabs.handle_mouse(click(4, 0), area));  # the divider
+    expect_false(tabs.handle_mouse(click(9, 0), area));
+    expect_true(tabs.handle_mouse(click(5, 0), area));  # the padding
+    expect_equal(tabs.selected, 1);
+    var buffer = draw(tabs, 9, 1);
+    buffer.assert_lines([" ab │ cd "]);
+    expect_true(buffer.get(6, 0).style.has(tui.REVERSE));
+    expect_false(buffer.get(1, 0).style.has(tui.REVERSE));
+    expect_true(tabs.handle_mouse(click(0, 0), area));
+    expect_equal(tabs.selected, 0);
+}
+
+[Test]
+scrollbar_jumps_on_a_click_and_follows_a_drag() {
+    var bar = Scrollbar();
+    var state = ScrollbarState(100);
+    var area = Rect(0, 0, 1, 12);
+    draw_stateful(bar, state, 1, 12);
+    # The track is rows 1 to 10, with the thumb one row long.
+    expect_true(state.handle_mouse(click(0, 10), area));
+    expect_equal(state.position, 90);
+    expect_true(state.handle_mouse(mouse(MouseKind.Up, 0, 10), area));
+    expect_false(state.handle_mouse(click(0, 11), area));  # the arrow
+    expect_true(state.handle_mouse(click(0, 1), area));
+    expect_equal(state.position, 0);
+    # Still held: dragging moves the thumb, off the bar too.
+    expect_true(state.handle_mouse(mouse(MouseKind.Drag, 5, 5), area));
+    expect_equal(state.position, 40);
+    expect_true(state.handle_mouse(mouse(MouseKind.Up, 5, 5), area));
+    expect_false(state.handle_mouse(mouse(MouseKind.Drag, 5, 8), area));
+    draw_stateful(bar, state, 1, 12).assert_lines(["▲", "║", "║", "║", "║", "█", "║", "║", "║", "║", "║", "▼"]);
+    expect_true(state.handle_mouse(mouse(MouseKind.ScrollDown, 0, 3), area));
+    expect_equal(state.position, 41);
+}
+
+[Test]
+paragraph_scrolls_with_the_wheel() {
+    var text = Text("1\n2\n3\n4");
+    var state = ScrollbarState(Paragraph(text).line_count(3), viewport_content_length = 2);
+    var area = Rect(0, 0, 3, 2);
+    expect_false(state.handle_mouse(mouse(MouseKind.ScrollDown, 3, 0), area));
+    for (var _ in 0..3) {
+        expect_true(state.handle_mouse(mouse(MouseKind.ScrollDown, 1, 1), area));
+    }
+    expect_equal(state.position, 2);
+    draw(Paragraph(text, scroll = state.position), 3, 2).assert_lines(["3  ", "4  "]);
+    expect_true(state.handle_mouse(mouse(MouseKind.ScrollUp, 1, 1), area));
+    draw(Paragraph(text, scroll = state.position), 3, 2).assert_lines(["2  ", "3  "]);
 }
 
 # A widget an app writes itself.

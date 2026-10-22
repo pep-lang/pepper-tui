@@ -29,7 +29,8 @@ One module, **`tui`**:
   **`Sparkline`**, **`BarChart`** and **`Scrollbar`** (with
   **`ScrollbarState`**); the **`Widget`** and **`StatefulWidget`** traits let
   an app write its own.
-- **`Events`** reads **`Event`**s: key presses and resizes.
+- **`Events`** reads **`Event`**s: key presses, the mouse (with
+  `init(mouse = true)`) and resizes.
 
 ```pepper
 # The smallest full-screen app: a bordered greeting, until q is pressed.
@@ -66,7 +67,45 @@ main(): int {
 This is `examples/minimal/main.pep`. `examples/list_detail/main.pep` is a
 list of planets beside the selected one's details, with a gauge and a help
 line: `Layout`, a stateful `List`, a wrapped `Paragraph` of styled spans,
-and key handling.
+and key and mouse handling.
+
+## The mouse
+
+Mouse input is off unless the app asks: `tui.init(mouse = true)` turns on
+reports of presses, releases, drags and the wheel (and `restore` turns them
+off), and `Events.next` then yields `Event.Mouse(mouse)`, a pepper-term
+`MouseEvent` whose `column` and `row` count from 0, as a `Rect`'s do. While
+it is on, the terminal no longer selects text with the mouse; most still
+do with Shift held.
+
+As in Ratatui, the app decides what a mouse event does, with these helpers:
+
+- **`Terminal.area_of(id)`** is the area the last frame drew the widget
+  named `id` in (`frame.render_widget(widget, area, id = "list")`), for
+  hit testing with **`Rect.contains(column, row)`**: to focus the pane
+  clicked, say.
+- **`ListState.handle_mouse(mouse)`** (and `TableState`'s): a left click
+  selects the item under it, and the wheel over the widget moves the
+  selection, by where the last draw put them. **`header_clicked(mouse)`**
+  says which header column of a `Table` was clicked; the table does not
+  act on it.
+- **`ScrollbarState.handle_mouse(mouse, area)`**: a click on the track
+  jumps there, dragging the thumb moves it, and the wheel over `area`
+  scrolls by one. It scrolls a `Paragraph` too, drawn with `scroll =
+  state.position`.
+- **`Tabs.handle_mouse(mouse, area)`**: a click selects a title.
+
+```pepper
+match (event.value()) {
+    Mouse(mouse) => {
+        if (terminal.area_of("list").contains(mouse.column as int, mouse.row as int)) {
+            focus = Focus.List;
+        }
+        state.handle_mouse(mouse);
+    }
+    # ... keys and resizes ...
+}
+```
 
 ## Testing an app
 
@@ -89,7 +128,7 @@ draws_a_titled_block() {
 ## Restoring the terminal
 
 `restore()` leaves the alternate screen, shows the cursor and turns raw
-mode off. The same happens at the end of `main`, on a panic, and, on Linux
+mode and mouse reporting off. The same happens at the end of `main`, on a panic, and, on Linux
 and macOS, on SIGTERM, SIGHUP, SIGINT and SIGQUIT. `process.exit` runs no
 exit handlers, so call `tui.restore()` before it.
 
@@ -101,13 +140,12 @@ first, or its raw mode, freed later, turns the new one's off.
 
 ## Limits
 
-- No mouse, bracketed paste or focus events: pepper-term does not decode
-  them (a mouse report arrives as `Key.Unknown`).
+- No bracketed paste (pep-lang/pepper-tui#3) or focus events.
 - No resize notification: pepper-term has no SIGWINCH, so `Events.next`
   notices a new size when it is called, before it waits for a key, and
   `Terminal.draw` redraws at the new size on the next frame.
-- No ticks or timers: `Events.next` waits for a key with no timeout, since
-  pepper-term's `KeyReader` has none
+- No ticks or timers: `Events.next` waits for input with no timeout, since
+  pepper-term's `InputReader` has none
   (pep-lang/pepper-term#3).
 - A panic's message is written while the alternate screen is up, so it is
   gone once the screen is put back: Pepper has no way to run code before a
@@ -148,10 +186,11 @@ tests/run.sh path/to/pepper
 ```
 
 runs the `[Test]` functions in `tests/` with `pepper test`: snapshot tests
-through `TestBackend` of every widget, the layout's edge cases (zero size,
-overflow, rounding), buffers, styles, display width and the diffing. Then
-it builds the examples and runs them on piped input, through the real
-backend, and checks the screen is put back after a panic.
+through `TestBackend` of every widget, the mouse helpers fed synthetic
+`MouseEvent`s, the layout's edge cases (zero size, overflow, rounding),
+buffers, styles, display width and the diffing. Then it builds the
+examples and runs them on piped input (keys, and mouse reports), through
+the real backend, and checks the screen is put back after a panic.
 
 ## Releasing
 

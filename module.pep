@@ -14,7 +14,9 @@
 ## - `Widget`, `StatefulWidget`, and the widgets `Block`, `Paragraph`,
 ##   `List`, `Table`, `Tabs`, `Gauge`, `Sparkline`, `BarChart` and
 ##   `Scrollbar`
-## - `Events`, `Event`: keys and resizes
+## - `Events`, `Event`: keys, the mouse (with `init(mouse = true)`) and
+##   resizes; `Terminal.area_of` and the widgets' `handle_mouse` for
+##   hit testing
 ##
 ## @example
 ##     import tui;

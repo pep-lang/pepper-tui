@@ -31,6 +31,17 @@ tail -c 14 "$build/minimal.out" | od -c | grep -q '\[   ?   1   0   4   9   l'
 printf 'jjq' | "$build/list_detail" > "$build/list_detail.out"
 grep -q 'Mars' "$build/list_detail.out"
 grep -q 'Sun' "$build/list_detail.out"
+# A click (an xterm SGR report) on Saturn, the sixth row of the list,
+# shows its moons, and the wheel then moves to Uranus ("ice" giant: only
+# the cells that changed are written).
+printf '\033[<0;3;7M\033[<0;3;7mq' | "$build/list_detail" > "$build/mouse.out"
+grep -q '146' "$build/mouse.out"
+if grep -q ice "$build/mouse.out"; then
+    echo "error: a click selected past Saturn" >&2
+    exit 1
+fi
+printf '\033[<0;3;7M\033[<65;3;7Mq' | "$build/list_detail" > "$build/wheel.out"
+grep -q ice "$build/wheel.out"
 
 # A panic puts the screen back too.
 if "$build/panic" < /dev/null > "$build/panic.out" 2> "$build/panic.err"; then
