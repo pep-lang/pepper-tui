@@ -25,12 +25,14 @@ One module, **`tui`**:
   pepper-term's colors (16, 256 and RGB) and the modifiers `BOLD`, `DIM`,
   `ITALIC`, `UNDERLINE` and `REVERSE`.
 - The widgets **`Block`**, **`Paragraph`**, **`List`** and **`Table`** (with
-  **`ListState`** and **`TableState`**), **`Tabs`**, **`Gauge`**,
-  **`Sparkline`**, **`BarChart`** and **`Scrollbar`** (with
-  **`ScrollbarState`**); the **`Widget`** and **`StatefulWidget`** traits let
-  an app write its own.
+  **`ListState`** and **`TableState`**), **`TextInput`** (with
+  **`TextInputState`**), **`Tabs`**, **`Gauge`**, **`Sparkline`**,
+  **`BarChart`** and **`Scrollbar`** (with **`ScrollbarState`**); the
+  **`Widget`** and **`StatefulWidget`** traits let an app write its own.
 - **`Events`** reads **`Event`**s: key presses, the mouse (with
-  `init(mouse = true)`) and resizes.
+  `init(mouse = true)`), pastes (with `init(paste = true)`) and resizes.
+- **`Terminal.copy`** puts text on the clipboard, such as a widget's
+  `selected_text()`.
 
 ```pepper
 # The smallest full-screen app: a bordered greeting, until q is pressed.
@@ -67,7 +69,8 @@ main(): int {
 This is `examples/minimal/main.pep`. `examples/list_detail/main.pep` is a
 list of planets beside the selected one's details, with a gauge and a help
 line: `Layout`, a stateful `List`, a wrapped `Paragraph` of styled spans,
-and key and mouse handling.
+and key and mouse handling. `examples/text_input/main.pep` is two text
+fields, one row and many, with paste and copy.
 
 ## The mouse
 
@@ -107,6 +110,50 @@ match (event.value()) {
 }
 ```
 
+## Text input and paste
+
+A **`TextInput`** draws a **`TextInputState`**: the text, a cursor, a
+selection (Shift with the arrows, Home and End, or `select_all()`) and a
+scroll. Hand it the app's events with `state.handle_event(event)`, which
+returns false for what it leaves to the app (keys with Ctrl or Alt, Tab,
+Escape, and Enter in a one-row field). A one-row field scrolls sideways;
+`TextInputState(multiline = true)` takes line ends and wraps at the area's
+width, by display width, so wide characters take two columns. Control
+characters show harmlessly: a line end in a one-row field as `⏎`, the rest
+as U+FFFD.
+
+Bracketed paste is off unless the app asks: with `tui.init(paste = true)`
+a paste arrives as one `Event.Paste(text, truncated)`, with `"\n"` line
+ends, rather than as typed keys (so a line end in it is not Enter), and
+`restore` turns it off. `handle_event` puts a paste in at the cursor; a
+one-row field turns its line ends into spaces, unless made with
+`keep_newlines = true`. `truncated` (and the state's `paste_truncated`)
+says a paste past a megabyte was cut to its start.
+
+## Copying to the clipboard
+
+**`terminal.copy(text)`** copies through pepper-term's `Clipboard`, made at
+the first copy: the OS's clipboard when the program runs locally, else the
+terminal's, through OSC 52, which reaches the user's clipboard over SSH
+too. It sends the frame first, so the sequence never lands inside one. It
+returns a `term.ClipboardError` when it cannot copy; its `to_string()`
+holds none of the text, so a status line can show it. Through OSC 52 the
+terminal does not say whether it copied.
+
+What to copy comes from the widgets: **`TextInputState.selected_text()`**,
+and **`ListState.selected_text()`** (and `TableState`'s): the selected
+item's text as the last draw found it, a table row's cells joined by tabs.
+Bind it to a key:
+
+```pepper
+if (event.value() is Key(key)) {
+    if (key.ctrl && key.text == "y") {
+        var copied = terminal.copy(state.selected_text());
+        status = copied.is_err() ? $"could not copy: {copied.error()}" : "copied";
+    }
+}
+```
+
 ## Testing an app
 
 Draw on a `TestBackend` and compare the screen, a string per row:
@@ -128,7 +175,7 @@ draws_a_titled_block() {
 ## Restoring the terminal
 
 `restore()` leaves the alternate screen, shows the cursor and turns raw
-mode and mouse reporting off. The same happens at the end of `main`, on a panic, and, on Linux
+mode, mouse reporting and bracketed paste off. The same happens at the end of `main`, on a panic, and, on Linux
 and macOS, on SIGTERM, SIGHUP, SIGINT and SIGQUIT. `process.exit` runs no
 exit handlers, so call `tui.restore()` before it.
 
@@ -140,7 +187,9 @@ first, or its raw mode, freed later, turns the new one's off.
 
 ## Limits
 
-- No bracketed paste (pep-lang/pepper-tui#3) or focus events.
+- No focus events, no mouse selection in a `Paragraph` or a `TextInput`,
+  and no reading the clipboard: the terminal pastes itself, through
+  `Event.Paste`.
 - No resize notification: pepper-term has no SIGWINCH, so `Events.next`
   notices a new size when it is called, before it waits for a key, and
   `Terminal.draw` redraws at the new size on the next frame.
@@ -187,9 +236,10 @@ tests/run.sh path/to/pepper
 
 runs the `[Test]` functions in `tests/` with `pepper test`: snapshot tests
 through `TestBackend` of every widget, the mouse helpers fed synthetic
-`MouseEvent`s, the layout's edge cases (zero size, overflow, rounding),
-buffers, styles, display width and the diffing. Then it builds the
-examples and runs them on piped input (keys, and mouse reports), through
+`MouseEvent`s, `TextInput` fed synthetic keys and pastes, the layout's
+edge cases (zero size, overflow, rounding), buffers, styles, display
+width and the diffing. Then it builds the examples and runs them on piped
+input (keys, mouse reports and bracketed pastes), through
 the real backend, and checks the screen is put back after a panic.
 
 ## Releasing

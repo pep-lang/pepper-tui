@@ -12,11 +12,12 @@
 ## - `Style`, `BOLD` and the other modifiers, `Span`, `Line`, `Text`,
 ##   `Alignment`, `char_width`, `display_width`: styled text
 ## - `Widget`, `StatefulWidget`, and the widgets `Block`, `Paragraph`,
-##   `List`, `Table`, `Tabs`, `Gauge`, `Sparkline`, `BarChart` and
-##   `Scrollbar`
-## - `Events`, `Event`: keys, the mouse (with `init(mouse = true)`) and
-##   resizes; `Terminal.area_of` and the widgets' `handle_mouse` for
-##   hit testing
+##   `List`, `Table`, `TextInput`, `Tabs`, `Gauge`, `Sparkline`,
+##   `BarChart` and `Scrollbar`
+## - `Events`, `Event`: keys, the mouse (with `init(mouse = true)`),
+##   pastes (with `init(paste = true)`) and resizes; `Terminal.area_of`
+##   and the widgets' `handle_mouse` for hit testing
+## - `Terminal.copy` and the widgets' `selected_text`: the clipboard
 ##
 ## @example
 ##     import tui;
@@ -61,6 +62,7 @@ import "table";
 import "tabs";
 import "terminal";
 import "text";
+import "text_input";
 import "widget";
 import "width";
 
@@ -80,5 +82,6 @@ export * from "table";
 export * from "tabs";
 export * from "terminal";
 export * from "text";
+export * from "text_input";
 export * from "widget";
 export * from "width";

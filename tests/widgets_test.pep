@@ -1,6 +1,6 @@
 # Snapshot tests of every widget, drawn through a Terminal on a TestBackend.
 
-import [MouseButton, MouseEvent, MouseKind] from term;
+import [Key, KeyEvent, MouseButton, MouseEvent, MouseKind] from term;
 import tui;
 import [
     Alignment,
@@ -9,6 +9,7 @@ import [
     BorderType,
     Buffer,
     Constraint,
+    Event,
     Frame,
     Gauge,
     Line,
@@ -28,6 +29,8 @@ import [
     Terminal,
     TestBackend,
     Text,
+    TextInput,
+    TextInputState,
     Widget
 ] from tui;
 
@@ -368,4 +371,153 @@ draws_an_apps_own_widget() {
         frame.render_widget(Checker(), Block().inner(frame.area));
     });
     backend.buffer.assert_lines(["┌───┐", "│#.#│", "└───┘"]);
+}
+
+# A key press, as `Event.Key` gives it.
+press(key: Key, shift: bool = false): KeyEvent {
+    return KeyEvent(key, shift = shift);
+}
+
+# Types each character of `value` into `state`.
+type_text(state: TextInputState, value: String) {
+    for (var c in value) {
+        expect_true(state.handle_key(KeyEvent(Key.Char, c)));
+    }
+}
+
+[Test]
+text_input_types_and_shows_the_cursor() {
+    var state = TextInputState();
+    type_text(state, "hi");
+    expect_equal(state.text, "hi");
+    var screen = draw_stateful(TextInput(), state, 4, 1);
+    screen.assert_lines(["hi  "]);
+    expect_true(screen.get(2, 0).style.has(tui.REVERSE));
+    expect_false(screen.get(1, 0).style.has(tui.REVERSE));
+    expect_false(state.handle_key(press(Key.Enter)));  # left to the app
+    expect_false(state.handle_key(KeyEvent(Key.Char, "c", ctrl = true)));
+}
+
+[Test]
+text_input_moves_over_wide_and_combining_characters() {
+    var state = TextInputState();
+    state.set_text("a界e\u{301}b");
+    expect_true(state.handle_key(press(Key.Left)));  # before b
+    expect_true(state.handle_key(press(Key.Left)));  # before e and its accent
+    expect_equal(state.cursor, 4);
+    expect_true(state.handle_key(press(Key.Left)));  # before 界, in one step
+    expect_equal(state.cursor, 1);
+    var screen = draw_stateful(TextInput(), state, 6, 1);
+    screen.assert_lines(["a界e\u{301}b "]);
+    expect_true(screen.get(1, 0).style.has(tui.REVERSE));
+    expect_true(state.handle_key(press(Key.Delete)));
+    expect_equal(state.text, "ae\u{301}b");
+    expect_true(state.handle_key(press(Key.End)));
+    expect_true(state.handle_key(press(Key.Backspace)));
+    expect_true(state.handle_key(press(Key.Backspace)));  # the accent with its e
+    expect_equal(state.text, "a");
+    expect_true(state.handle_key(press(Key.Home)));
+    expect_equal(state.cursor, 0);
+}
+
+[Test]
+text_input_selects_and_replaces() {
+    var state = TextInputState();
+    state.set_text("hello");
+    expect_equal(state.selected_text(), "");
+    state.handle_key(press(Key.Left, shift = true));
+    state.handle_key(press(Key.Left, shift = true));
+    expect_equal(state.selected_text(), "lo");
+    var screen = draw_stateful(TextInput(cursor_style = tui.Style()), state, 6, 1);
+    expect_false(screen.get(2, 0).style.has(tui.REVERSE));
+    expect_true(screen.get(3, 0).style.has(tui.REVERSE));
+    expect_true(screen.get(4, 0).style.has(tui.REVERSE));
+    type_text(state, "p!");
+    expect_equal(state.text, "help!");
+    state.select_all();
+    expect_equal(state.selected_text(), "help!");
+    expect_true(state.handle_key(press(Key.Backspace)));
+    expect_equal(state.text, "");
+    state.set_text("ab");
+    state.handle_key(press(Key.Home, shift = true));
+    state.handle_key(press(Key.Right));  # moving drops the selection
+    expect_equal(state.selected_text(), "");
+}
+
+[Test]
+text_input_takes_a_paste_on_one_row() {
+    var state = TextInputState();
+    state.set_text("[]");
+    state.handle_key(press(Key.Left));
+    expect_true(state.handle_event(Event.Paste("one\ntwo", false)));
+    expect_equal(state.text, "[one two]");
+    expect_false(state.paste_truncated);
+    expect_true(state.handle_event(Event.Paste("!", true)));
+    expect_true(state.paste_truncated);
+    expect_false(state.handle_event(Event.Resize(80, 24)));
+
+    var kept = TextInputState(keep_newlines = true);
+    kept.paste("a\nb");
+    expect_equal(kept.text, "a\nb");
+    draw_stateful(TextInput(), kept, 4, 1).assert_lines(["a⏎b "]);
+}
+
+[Test]
+text_input_shows_control_characters_harmlessly() {
+    var state = TextInputState();
+    state.paste("a\tb\x1B[2Jc\u{85}d\x7F");
+    expect_equal(state.text, "a\tb\x1B[2Jc\u{85}d\x7F");
+    draw_stateful(TextInput(), state, 12, 1).assert_lines(["a\u{FFFD}b\u{FFFD}[2Jc\u{FFFD}d\u{FFFD} "]);
+}
+
+[Test]
+text_input_scrolls_sideways_to_the_cursor() {
+    var state = TextInputState();
+    state.set_text("abcdef");
+    draw_stateful(TextInput(), state, 4, 1).assert_lines(["def "]);
+    expect_equal(state.scroll, 3);
+    state.handle_key(press(Key.Home));
+    draw_stateful(TextInput(), state, 4, 1).assert_lines(["abcd"]);
+    # Never half a wide character at the edge: a blank cell instead.
+    state.set_text("界界界");
+    draw_stateful(TextInput(), state, 4, 1).assert_lines([" 界 "]);
+}
+
+[Test]
+text_input_wraps_and_moves_by_row_when_multiline() {
+    var state = TextInputState(multiline = true);
+    state.paste("abcd\ne");
+    expect_equal(state.text, "abcd\ne");
+    draw_stateful(TextInput(), state, 3, 3).assert_lines(["abc", "d  ", "e  "]);
+    expect_true(state.handle_key(press(Key.Up)));  # after d
+    expect_equal(state.cursor, 4);
+    expect_true(state.handle_key(press(Key.Up)));
+    expect_equal(state.cursor, 1);
+    expect_false(state.handle_key(press(Key.Up)));
+    expect_true(state.handle_key(press(Key.Down)));
+    expect_true(state.handle_key(press(Key.Down)));
+    expect_equal(state.cursor, 6);  # the end: past e
+    expect_true(state.handle_key(press(Key.Enter)));
+    type_text(state, "f");
+    expect_equal(state.text, "abcd\ne\nf");
+    # Taller than the area: scrolled to keep the cursor's row.
+    draw_stateful(TextInput(), state, 3, 2).assert_lines(["e  ", "f  "]);
+    expect_equal(state.scroll, 2);
+}
+
+[Test]
+list_and_table_give_the_selected_text() {
+    var state = ListState();
+    var list = List([Text("one"), Text([Line("two"), Line("2")])]);
+    draw_stateful(list, state, 5, 3);
+    expect_equal(state.selected_text(), "");
+    state.select(Optional<ulong>.Value(1));
+    draw_stateful(list, state, 5, 3);
+    expect_equal(state.selected_text(), "two\n2");
+
+    var rows = TableState();
+    var table = Table([Row(["Ada", "1815"]), Row(["Grace", "1906"])], [Constraint.Length(5), Constraint.Length(4)]);
+    rows.select_next();
+    draw_stateful(table, rows, 10, 2);
+    expect_equal(rows.selected_text(), "Ada\t1815");
 }

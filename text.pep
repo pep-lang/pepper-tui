@@ -142,6 +142,23 @@ export struct Text {
         }
         return widest;
     }
+
+    ## Returns the text without its styles: the lines' spans, the lines
+    ## joined by "\n".
+    ##
+    ## @returns the plain text
+    to_string(): String {
+        var plain = StringBuilder();
+        for (ulong index in 0..lines.count) {
+            if (index > 0) {
+                plain.append("\n");
+            }
+            for (var span in lines[index].spans) {
+                plain.append(span.content);
+            }
+        }
+        return plain.to_string();
+    }
 }
 
 # The column offset that places `width` columns in `available` ones.

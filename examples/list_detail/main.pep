@@ -114,7 +114,9 @@ main(): int {
             Mouse(mouse) => {
                 state.handle_mouse(mouse);
             }
-            Resize(_, _) => {}
+            # A resize redraws at the next frame; pastes come only with
+            # init(paste = true).
+            else => {}
         }
     }
     tui.restore();

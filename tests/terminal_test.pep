@@ -1,5 +1,7 @@
 # The Terminal: diffed frames, resizes and the cursor.
 
+import term;
+import [ClipboardBackend] from term;
 import tui;
 import [Backend, CellUpdate, Paragraph, Rect, Terminal, TestBackend, Text] from tui;
 
@@ -7,6 +9,7 @@ import [Backend, CellUpdate, Paragraph, Rect, Terminal, TestBackend, Text] from 
 struct Recorder {
     var screen = TestBackend(4, 2);
     var written = Array<int>();
+    var flushes = 0;
 }
 
 extend Recorder with Backend {
@@ -31,7 +34,9 @@ extend Recorder with Backend {
         screen.show_cursor(x, y);
     }
 
-    flush() {}
+    flush() {
+        flushes += 1;
+    }
 }
 
 show(terminal: Terminal, text: Text) {
@@ -112,4 +117,17 @@ returns_the_frame_it_drew() {
         frame.render_widget(Paragraph("hey"), frame.area);
     });
     drawn.assert_lines(["hey"]);
+}
+
+[Test]
+copy_flushes_then_uses_the_clipboard_set() {
+    var recorder = Recorder();
+    var terminal = Terminal(recorder);
+    # Standard output is not a terminal under `pepper test`, so OSC 52
+    # refuses, and nothing reaches the real clipboard.
+    terminal.clipboard = Optional<term.Clipboard>.Value(term.Clipboard(ClipboardBackend.Osc52));
+    var copied = terminal.copy("secret");
+    expect_equal(recorder.flushes, 1);
+    expect_true(copied.is_err() && copied.error() is NoBackend(_));
+    expect_false(copied.error().to_string().contains("secret"));
 }

@@ -5,6 +5,6 @@ version = 1
 [[package]]
 name = "term"
 source = "github:pep-lang/pepper-term"
-version = "1.2.0"
-commit = "e73952ed6282260b097466bcdd2873105056c394"
-sha256 = "c1c408dd0561fa37d6690bfc9ef1fa3632c8cc5eb573b1a0ed5887c6520e07f9"
+version = "1.3.0"
+commit = "36bde138c70756b1abbc0e13d677046f5a7de5f7"
+sha256 = "d7e22098e1496365680f66d90b6c523e29a35104d1144e2eb269b38b432ff9e9"
