@@ -289,7 +289,11 @@ export struct Terminal {
     var _previous: Buffer;
     var _cursor_hidden: bool;
     var _areas = HashMap<String, Rect>();
-    var _clipboard: term.Clipboard?;
+    ## The clipboard `copy` uses, made with `ClipboardBackend.Auto` at the
+    ## first copy while Empty; set it to choose another backend, or, in a
+    ## test, `term.Clipboard(ClipboardBackend.Osc52)`, which writes to
+    ## standard output only when it is a terminal.
+    var clipboard: term.Clipboard?;
 
     ## Makes a terminal that draws on `backend`. The backend's screen is
     ## taken to be blank.
@@ -362,8 +366,9 @@ export struct Terminal {
         return drawn;
     }
 
-    ## Copies `text` to the clipboard, through a pepper-term `Clipboard`
-    ## made at the first copy (`ClipboardBackend.Auto`: the OS's clipboard
+    ## Copies `text` to the clipboard, through `clipboard`, a pepper-term
+    ## `Clipboard` made at the first copy unless set
+    ## (`ClipboardBackend.Auto`: the OS's clipboard
     ## when the program runs locally, else the terminal's, through OSC 52,
     ## which reaches the user's clipboard over SSH too). What the backend
     ## has not sent yet goes first, so the OSC 52 sequence is never written
@@ -385,10 +390,10 @@ export struct Terminal {
     ##     }
     copy(text: String): Result<void, term.ClipboardError> {
         backend.flush();
-        if (_clipboard.is_empty()) {
-            _clipboard = Optional<term.Clipboard>.Value(term.Clipboard());
+        if (clipboard.is_empty()) {
+            clipboard = Optional<term.Clipboard>.Value(term.Clipboard());
         }
-        return _clipboard.value().copy(text);
+        return clipboard.value().copy(text);
     }
 
     ## Erases the screen; the next `draw` writes every cell.

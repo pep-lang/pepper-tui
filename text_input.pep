@@ -388,6 +388,8 @@ struct _Layout {
 
 # Lays `value` out at `width` columns: on one row, or, `multiline`, a row
 # per line, each wrapped where its next character would pass `width`.
+# shortcut: lays out the whole text on each draw and key, O(size); a field
+# holding megabytes lags; lay out only the rows shown if one needs that.
 _layout(value: String, width: int, multiline: bool): _Layout {
     var layout = _Layout();
     var row = 0;
