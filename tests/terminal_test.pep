@@ -90,6 +90,22 @@ shows_the_cursor_only_when_a_frame_places_it() {
 }
 
 [Test]
+keeps_the_areas_of_named_widgets() {
+    var terminal = Terminal(TestBackend(10, 4));
+    terminal.draw((frame) => {
+        frame.render_widget(Paragraph("a"), Rect(0, 0, 10, 1), id = "top");
+        frame.render_widget(Paragraph("b"), Rect(0, 1, 10, 3));
+    });
+    expect_equal(terminal.area_of("top").to_string(), "Rect(0, 0, 10, 1)");
+    expect_true(terminal.area_of("top").contains(9, 0));
+    expect_false(terminal.area_of("top").contains(0, 1));
+    expect_false(terminal.area_of("other").contains(0, 0));
+    # Each frame's areas replace the last one's.
+    show(terminal, "");
+    expect_true(terminal.area_of("top").is_empty());
+}
+
+[Test]
 returns_the_frame_it_drew() {
     var terminal = Terminal(TestBackend(3, 1));
     var drawn = terminal.draw((frame) => {

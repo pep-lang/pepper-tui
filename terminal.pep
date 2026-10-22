@@ -43,16 +43,31 @@ export trait Backend {
 
 ## The backend of a real terminal: it writes escape sequences to standard
 ## output through pepper-term, all of a frame's in one write, and holds raw
-## mode on while it lives. Make one with `init`.
+## mode (and, when asked, mouse reporting) on while it lives. Make one with
+## `init`.
 export struct TermBackend {
     var _raw: term.RawMode;
+    var _mouse: term.MouseMode?;
     var _out = io.File.stdout();
     var _pending = StringBuilder();
 
     ## Makes the backend, turning raw mode on while it lives. `init` makes
     ## one and sets up the screen too.
-    construct() {
+    ##
+    ## @param mouse whether to turn mouse reporting on too: presses,
+    ##   releases, drags and the wheel
+    construct(mouse: bool = false) {
         _raw = term.RawMode();
+        if (mouse) {
+            _mouse = Optional<term.MouseMode>.Value(term.MouseMode(term.MouseTracking.Drag));
+        }
+    }
+
+    # Mouse reporting goes off before raw mode, the reverse of turning on.
+    destruct {
+        if (_mouse) {
+            _mouse.value().exit();
+        }
     }
 }
 
@@ -192,6 +207,7 @@ export struct Frame {
     ## The buffer the frame is drawn into.
     var buffer: Buffer;
     var _cursor: (int, int)?;
+    var _areas = HashMap<String, Rect>();
 
     ## Makes a frame that draws into `buffer`.
     ##
@@ -201,23 +217,36 @@ export struct Frame {
         area = buffer.area;
     }
 
-    ## Draws `widget` into `area` of the frame.
+    ## Draws `widget` into `area` of the frame. With an `id`, the area is
+    ## kept, for `Terminal.area_of` to tell after the frame which widget a
+    ## mouse event landed on.
     ##
     ## @param widget the widget
     ## @param area where to draw it
-    render_widget(widget: Widget, area: Rect) {
+    ## @param id a name for the area; "" keeps none
+    render_widget(widget: Widget, area: Rect, id: String = "") {
         widget.render(area, buffer);
+        _keep(id, area);
     }
 
     ## Draws `widget` into `area` of the frame with `state`, which the
-    ## widget may change.
+    ## widget may change. With an `id`, the area is kept, as
+    ## `render_widget` keeps it.
     ##
     ## @typeParam TState the state's type
     ## @param widget the widget
     ## @param area where to draw it
     ## @param state its state
-    render_stateful_widget<TState>(widget: StatefulWidget<TState>, area: Rect, state: TState) {
+    ## @param id a name for the area; "" keeps none
+    render_stateful_widget<TState>(widget: StatefulWidget<TState>, area: Rect, state: TState, id: String = "") {
         widget.render(area, buffer, state);
+        _keep(id, area);
+    }
+
+    _keep(id: String, area: Rect) {
+        if (!id.is_empty) {
+            _areas.insert(id, area);
+        }
     }
 
     ## Shows the cursor at column `x` and row `y` once the frame is drawn,
@@ -249,6 +278,7 @@ export struct Terminal {
     var _current: Buffer;
     var _previous: Buffer;
     var _cursor_hidden: bool;
+    var _areas = HashMap<String, Rect>();
 
     ## Makes a terminal that draws on `backend`. The backend's screen is
     ## taken to be blank.
@@ -268,6 +298,26 @@ export struct Terminal {
         return _current.area;
     }
 
+    ## Returns the area the last `draw` drew the widget named `id` in, as
+    ## `Frame.render_widget` kept it: for hit testing a mouse event, with
+    ## `Rect.contains(mouse.column, mouse.row)`.
+    ##
+    ## @param id the name given when drawing
+    ## @returns the area, or an empty `Rect` (which contains no cell) when
+    ##   the last frame drew nothing by that name
+    ## @example
+    ##     import tui;
+    ##     import [Paragraph, Terminal, TestBackend] from tui;
+    ##
+    ##     var terminal = Terminal(TestBackend(20, 5));
+    ##     terminal.draw((frame) => {
+    ##         frame.render_widget(Paragraph("hi"), frame.area, id = "greeting");
+    ##     });
+    ##     var hit = terminal.area_of("greeting").contains(3, 2);   # true
+    area_of(id: String): Rect {
+        return _areas.try_get(id).value_or(Rect());
+    }
+
     ## Draws a frame: calls `render` with a blank `Frame` of the whole
     ## screen, then writes to the backend the cells that changed since the
     ## last frame, and flushes once.
@@ -283,6 +333,7 @@ export struct Terminal {
         }
         var frame = Frame(_current);
         render(frame);
+        _areas = frame._areas;
         backend.draw(_current.diff(_previous));
         if (frame._cursor) {
             var (x, y) = frame._cursor.value();
@@ -310,7 +361,10 @@ export struct Terminal {
 
 ## Sets up the terminal for a full-screen app and returns a `Terminal` that
 ## draws on it: raw mode on, the alternate screen, colors on, the cursor
-## hidden, the screen blank.
+## hidden, the screen blank. With `mouse`, mouse reporting is on too, and
+## `Events.next` yields `Event.Mouse`; the terminal then keeps the mouse,
+## so the user cannot select text with it (many terminals still select
+## with Shift held).
 ##
 ## Call `restore` when the app ends. The terminal is also restored when the
 ## program ends without it: at the end of `main`, on a panic, and on
@@ -324,26 +378,29 @@ export struct Terminal {
 ## `Terminal` go first: its backend's raw mode, freed later, would turn the
 ## new one's off.
 ##
+## @param mouse whether to turn mouse reporting on: presses, releases,
+##   drags and the wheel
 ## @returns the terminal
 ## @example
 ##     import tui;
 ##
 ##     main(): int {
-##         var terminal = tui.init();
+##         var terminal = tui.init(mouse = true);
 ##         # ... draw frames and read events ...
 ##         tui.restore();
 ##         return 0;
 ##     }
-export init(): Terminal {
+export init(mouse: bool = false): Terminal {
     _tui_install_hooks();
-    var backend = TermBackend();
+    var backend = TermBackend(mouse);
     term.colors_enabled();
     _tui_enter();
     return Terminal(backend);
 }
 
 ## Puts the terminal back as `init` found it: the main screen, the cursor
-## showing, and raw mode off. Does nothing when it is already restored.
+## showing, and raw mode and mouse reporting off. Does nothing when it is
+## already restored.
 export restore() {
     _tui_leave();
     term.restore();

@@ -1,11 +1,14 @@
 ## `Tabs`: a row of titles with one selected.
 
+import term;
 import "block";
 import "buffer";
+import "events";
 import "geometry";
 import "style";
 import "text";
 import "widget";
+import "width";
 
 ## A row of titles, padded and separated by `divider`, with the selected
 ## one highlighted.
@@ -62,6 +65,35 @@ export struct Tabs {
         this.divider = divider;
         this.padding_left = padding_left;
         this.padding_right = padding_right;
+    }
+
+    ## Selects the title a left click landed on, its padding included, with
+    ## the tabs drawn in `area`. Keep the `Tabs` from frame to frame, or its
+    ## `selected` in the app, to keep the choice.
+    ##
+    ## @param event the mouse event, as `Event.Mouse` gives it
+    ## @param area where the tabs are drawn, such as `Terminal.area_of` gives
+    ## @returns true when the click selected a title
+    handle_mouse(event: term.MouseEvent, area: Rect): bool {
+        var column = event.column as int;
+        var inner = block.inner(area);
+        if (!_is_left_click(event) || !inner.contains(column, event.row as int)) {
+            return false;
+        }
+        # The same steps as `render`, measuring instead of drawing.
+        var x = inner.x;
+        for (ulong index in 0..titles.count) {
+            if (index > 0) {
+                x += display_width(divider);
+            }
+            var start = x;
+            x += display_width(padding_left) + titles[index].width() + display_width(padding_right);
+            if (column >= start && column < x) {
+                selected = index;
+                return true;
+            }
+        }
+        return false;
     }
 }
 

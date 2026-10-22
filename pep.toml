@@ -1,9 +1,9 @@
 [package]
 name = "tui"
-version = "1.0.0"
+version = "1.1.0"
 description = "Full-screen terminal apps in the style of Ratatui: widgets, layout and diffed rendering over pepper-term"
 license = "Apache-2.0"
 repository = "https://github.com/pep-lang/pepper-tui"
 
 [dependencies]
-term = { github = "pep-lang/pepper-term", version = "1.0.0" }
+term = { github = "pep-lang/pepper-term", version = "1.2.0" }

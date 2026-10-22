@@ -1,8 +1,10 @@
 ## `List`: items one under another, one of them selected, scrolled to keep
 ## the selection in view; `ListState` holds the selection and the scroll.
 
+import term;
 import "block";
 import "buffer";
+import "events";
 import "geometry";
 import "style";
 import "text";
@@ -24,9 +26,83 @@ export struct ListState {
     var selected: ulong?;
     ## The first item shown.
     var offset: ulong;
+    # What the last draw put where, for `handle_mouse`: the whole area, the
+    # rows of items, the item on each of those rows, the item count, and a
+    # table's header cells.
+    var _area: Rect;
+    var _rows: Rect;
+    var _row_items = Array<ulong>();
+    var _count: ulong;
+    var _header = Array<Rect>();
 
     ## Makes a state with nothing selected and no scroll.
     construct() {}
+
+    ## Acts on a mouse event as the `List` or `Table` last drawn with this
+    ## state places it: a left click on an item selects it, a partly shown
+    ## last item included, and the wheel over the widget moves the
+    ## selection. Clicks on the borders and a table's header select
+    ## nothing (see `header_clicked`).
+    ##
+    ## @param event the mouse event, as `Event.Mouse` gives it
+    ## @returns true when it acted on the event
+    ## @example
+    ##     import tui;
+    ##     import [Event] from tui;
+    ##
+    ##     var state = tui.ListState();
+    ##     # in the event loop: if (event is Mouse(mouse)) { state.handle_mouse(mouse); }
+    handle_mouse(event: term.MouseEvent): bool {
+        var column = event.column as int;
+        var row = event.row as int;
+        if (_count == 0 || !_area.contains(column, row)) {
+            return false;
+        }
+        if (event.kind == term.MouseKind.ScrollDown) {
+            select(Optional<ulong>.Value(selected ? (selected.value() + 1).min(_count - 1) : 0));
+            return true;
+        }
+        if (event.kind == term.MouseKind.ScrollUp) {
+            select_previous();
+            return true;
+        }
+        if (!_is_left_click(event) || !_rows.contains(column, row)) {
+            return false;
+        }
+        var index = (row - _rows.y) as ulong;
+        if (index >= _row_items.count) {
+            return false;
+        }
+        select(Optional<ulong>.Value(_row_items[index]));
+        return true;
+    }
+
+    ## Returns which column of a `Table`'s header a left click landed on,
+    ## as the table last drawn with this state places it. The table does
+    ## nothing with header clicks itself; an app may sort by the column.
+    ##
+    ## @param event the mouse event, as `Event.Mouse` gives it
+    ## @returns the column, from 0, or Empty when the event is not a left
+    ##   click on a header cell
+    header_clicked(event: term.MouseEvent): ulong? {
+        if (_is_left_click(event)) {
+            for (ulong index in 0.._header.count) {
+                if (_header[index].contains(event.column as int, event.row as int)) {
+                    return Optional<ulong>.Value(index);
+                }
+            }
+        }
+        return Optional<ulong>.Empty;
+    }
+
+    # Starts a draw's record of where things are.
+    _drawn(area: Rect, count: ulong) {
+        _area = area;
+        _rows = Rect();
+        _row_items = Array<ulong>();
+        _count = count;
+        _header = Array<Rect>();
+    }
 
     ## Selects `index`, or nothing for Empty.
     ##
@@ -108,6 +184,7 @@ extend List with StatefulWidget<ListState> {
     render(area: Rect, buffer: Buffer, state: ListState) {
         buffer.set_style(area, style);
         block.render(area, buffer);
+        state._drawn(area, items.count);
         var inner = block.inner(area);
         if (inner.is_empty()) {
             return;
@@ -116,6 +193,7 @@ extend List with StatefulWidget<ListState> {
             state.select(Optional<ulong>.Empty);
             return;
         }
+        state._rows = inner;
         var heights = Array<int>();
         for (var item in items) {
             heights.append(item.height().max(1));
@@ -143,6 +221,9 @@ extend List with StatefulWidget<ListState> {
             }
             if (chosen) {
                 buffer.set_style(Rect(inner.x, y, inner.width, rows), highlight_style);
+            }
+            for (var _ in 0..rows) {
+                state._row_items.append(index);
             }
             y += rows;
             index += 1;
