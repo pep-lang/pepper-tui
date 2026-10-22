@@ -399,7 +399,8 @@ export init(mouse: bool = false): Terminal {
 }
 
 ## Puts the terminal back as `init` found it: the main screen, the cursor
-## showing, and raw mode and mouse reporting off. Does nothing when it is already restored.
+## showing, and raw mode and mouse reporting off. Does nothing when it is
+## already restored.
 export restore() {
     _tui_leave();
     term.restore();

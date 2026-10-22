@@ -325,6 +325,11 @@ scrollbar_jumps_on_a_click_and_follows_a_drag() {
     draw_stateful(bar, state, 1, 12).assert_lines(["▲", "║", "║", "║", "║", "█", "║", "║", "║", "║", "║", "▼"]);
     expect_true(state.handle_mouse(mouse(MouseKind.ScrollDown, 0, 3), area));
     expect_equal(state.position, 41);
+    # A drag whose release went unreported ends at the next press elsewhere.
+    expect_true(state.handle_mouse(click(0, 1), area));
+    expect_false(state.handle_mouse(click(5, 20), area));
+    expect_false(state.handle_mouse(mouse(MouseKind.Drag, 0, 9), area));
+    expect_equal(state.position, 0);
 }
 
 [Test]

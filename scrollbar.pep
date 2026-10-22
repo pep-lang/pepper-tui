@@ -82,6 +82,11 @@ export struct ScrollbarState {
             _grab = -1;
             return true;
         }
+        if (event.kind == term.MouseKind.Down) {
+            # A release can go unreported (outside the window): a new press
+            # ends any drag.
+            _grab = -1;
+        }
         if (_is_left_click(event) && _track.contains(column, row)) {
             var on_thumb = cell >= _thumb_start && cell < _thumb_start + _thumb_length;
             _grab = on_thumb ? cell - _thumb_start : _thumb_length / 2;

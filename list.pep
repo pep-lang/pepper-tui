@@ -66,12 +66,15 @@ export struct ListState {
             select_previous();
             return true;
         }
-        var index = (row - _rows.y) as ulong;
-        if (_is_left_click(event) && _rows.contains(column, row) && index < _row_items.count) {
-            select(Optional<ulong>.Value(_row_items[index]));
-            return true;
+        if (!_is_left_click(event) || !_rows.contains(column, row)) {
+            return false;
         }
-        return false;
+        var index = (row - _rows.y) as ulong;
+        if (index >= _row_items.count) {
+            return false;
+        }
+        select(Optional<ulong>.Value(_row_items[index]));
+        return true;
     }
 
     ## Returns which column of a `Table`'s header a left click landed on,
