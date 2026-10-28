@@ -69,10 +69,8 @@ export struct Block {
     ## @param style the style of the whole area
     ## @param border_style the style of the borders
     ## @param padding cells left empty inside the borders
-    # No string literal in the default: it would arrive wrong
-    # (pep-lang/pepper#77).
     construct(
-        title: Line = Line(Array<Span>()),
+        title: Line = "",
         borders: int = BORDER_ALL,
         border_type: BorderType = BorderType.Plain,
         title_alignment: Alignment = Alignment.Left,
