@@ -12,6 +12,8 @@ measures_display_width() {
     expect_equal(tui.display_width("😀"), 2);
     expect_equal(tui.display_width("é"), 1);
     expect_equal(tui.char_width(9), 0);
+    # A vertical form (East Asian Wide), past the old built-in ranges.
+    expect_equal(tui.char_width(0xFE10), 2);
 }
 
 [Test]
