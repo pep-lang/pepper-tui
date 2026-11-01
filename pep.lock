@@ -8,3 +8,17 @@ source = "github:pep-lang/pepper-term"
 version = "1.4.0"
 commit = "7a719feca005efa2ddebc8643f4a24576c3e2316"
 sha256 = "ba7b7271ccd2a03904639ec1d144bddccc4515d837bf5ec4019ade14864c22b1"
+
+[[package]]
+name = "trie"
+source = "github:pep-lang/pepper-trie"
+version = "0.2.0"
+commit = "d304ed73f299b7f9577cc933a23acff5499bcdf4"
+sha256 = "d87b3622319ccd13ab54ca003775994dd32ba4125621e71d76f5fff05def0c5a"
+
+[[package]]
+name = "unicode"
+source = "github:pep-lang/pepper-unicode"
+version = "1.1.0"
+commit = "52cf45bfbd00350ba80231d906c8c2d27e55d2f5"
+sha256 = "345e46c5654616ac24b09772f0c173052b02e1fa9539d05ab9beb65fbbaa2949"

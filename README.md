@@ -5,7 +5,8 @@ modeled on [Ratatui](https://ratatui.rs): the app draws its whole screen
 from its state every frame, widgets render into a buffer of cells, and only
 the cells that changed since the last frame are written. It builds on
 [pepper-term](https://github.com/pep-lang/pepper-term) for raw mode, keys
-and colors, and works on Linux, macOS and Windows.
+and colors, and on [pepper-unicode](https://github.com/pep-lang/pepper-unicode)
+for display width, and works on Linux, macOS and Windows.
 
 One module, **`tui`**:
 
@@ -204,10 +205,9 @@ first, or its raw mode, freed later, turns the new one's off.
 - A stack overflow's message is written while the alternate screen is up,
   so it is gone once the screen is put back. Run the app with `2> log` to
   keep it.
-- Display width comes from a small built-in table of wide (East Asian Wide
-  and Fullwidth, and emoji) and zero-width ranges, not the full Unicode
-  data, and a grapheme cluster joined by ZWJ counts each of its emoji; this
-  changes to the unicode module once pep-lang/pepper#16 lands.
+- Display width counts code points, as `wcswidth` does (pepper-unicode's
+  `display_width`), so a grapheme cluster joined by ZWJ counts each of its
+  emoji.
 - `Layout` is a simple deterministic solver, not Ratatui's Cassowary one:
   leftover space goes to `Fill` parts by weight, else evenly to `Min` parts,
   else stays empty at the end; when space is short every part shrinks in
@@ -230,7 +230,9 @@ which writes
 tui = { github = "pep-lang/pepper-tui" }
 ```
 
-and fetches pepper-term with it. Colors come from pepper-term: `import
+and fetches pepper-term and pepper-unicode with it. pepper-unicode builds
+its tables with a build script, which `pepper package` asks you to read
+the first time. Colors come from pepper-term: `import
 [BasicColor, Color] from term;` (add `term` as a dependency too).
 
 ## Tests
