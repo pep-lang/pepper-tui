@@ -66,8 +66,8 @@ _tui_hook() {
     }
 }
 
-# A panic has printed its message by now, on the alternate screen that this
-# leaves; nothing can run sooner (pep-lang/pepper#83).
+# A panic leaves the screen in its hook, before its message, so this runs
+# for one only after a stack overflow, which skips the hook.
 [Target(!OS(Windows))]
 _tui_on_signal(number: int) {
     _tui_leave();
@@ -91,4 +91,22 @@ _tui_hook() {
 _tui_on_abort(number: int) {
     _tui_leave();
     term.restore();
+}
+
+# A panic leaves the screen and restores the terminal before it prints its
+# message, so the message lands on the normal screen, then runs the hook
+# installed before. Installed before `main` runs, as module-scope values
+# are; it does nothing while the screen is not set up. `_tui_leave` and
+# `term.restore` take no locks, so the hook is safe wherever the panic
+# happens.
+const _tui_panic_hook_installed = _tui_install_panic_hook();
+
+_tui_install_panic_hook(): bool {
+    var previous = take_panic_hook();
+    set_panic_hook((message, location) => {
+        _tui_leave();
+        term.restore();
+        previous(message, location);
+    });
+    return true;
 }

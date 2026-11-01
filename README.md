@@ -175,9 +175,14 @@ draws_a_titled_block() {
 ## Restoring the terminal
 
 `restore()` leaves the alternate screen, shows the cursor and turns raw
-mode, mouse reporting and bracketed paste off. The same happens at the end of `main`, on a panic, and, on Linux
-and macOS, on SIGTERM, SIGHUP, SIGINT and SIGQUIT. `process.exit` runs no
-exit handlers, so call `tui.restore()` before it.
+mode, mouse reporting and bracketed paste off. The same happens at the end
+of `main` or `process.exit`, on a panic, and, on Linux and macOS, on
+SIGTERM, SIGHUP, SIGINT and SIGQUIT. A panic does it before it prints its
+message, through the panic hook (`set_panic_hook`), so the message stays
+on the normal screen; the package calls the hook that was there before,
+and a program that installs its own later should call the one it
+replaces. A stack overflow skips the hook, so its message is printed on
+the alternate screen and lost when the screen is put back.
 
 Call `tui.init()` before anything turns pepper-term's raw mode on (a
 `term.RawMode`, a `term.LineReader` reading a line): otherwise pepper-term's
@@ -196,9 +201,9 @@ first, or its raw mode, freed later, turns the new one's off.
 - No ticks or timers: `Events.next` waits for input with no timeout, since
   pepper-term's `InputReader` has none
   (pep-lang/pepper-term#3).
-- A panic's message is written while the alternate screen is up, so it is
-  gone once the screen is put back: Pepper has no way to run code before a
-  panic prints (pep-lang/pepper#83). Run the app with `2> log` to keep it.
+- A stack overflow's message is written while the alternate screen is up,
+  so it is gone once the screen is put back. Run the app with `2> log` to
+  keep it.
 - Display width comes from a small built-in table of wide (East Asian Wide
   and Fullwidth, and emoji) and zero-width ranges, not the full Unicode
   data, and a grapheme cluster joined by ZWJ counts each of its emoji; this
@@ -240,7 +245,8 @@ through `TestBackend` of every widget, the mouse helpers fed synthetic
 edge cases (zero size, overflow, rounding), buffers, styles, display
 width and the diffing. Then it builds the examples and runs them on piped
 input (keys, mouse reports and bracketed pastes), through
-the real backend, and checks the screen is put back after a panic.
+the real backend, and checks the screen is put back after a panic, before
+the panic's message.
 
 ## Releasing
 
