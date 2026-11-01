@@ -60,4 +60,10 @@ if "$build/panic" < /dev/null > "$build/panic.out" 2> "$build/panic.err"; then
     exit 1
 fi
 grep -q 'on purpose' "$build/panic.err"
+# The message comes after the screen is put back: the panic hook runs first.
+"$build/panic" < /dev/null > "$build/panic.both" 2>&1 || true
+case "$(cat "$build/panic.both")" in
+    *$'\e[?1049l'*'on purpose'*) ;;
+    *) od -c "$build/panic.both" | tail -20 >&2; echo "error: the panic's message came before the screen was put back" >&2; exit 1 ;;
+esac
 tail -c 14 "$build/panic.out" | od -c | grep -q '\[   ?   1   0   4   9   l'
